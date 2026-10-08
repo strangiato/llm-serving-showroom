@@ -1,0 +1,3 @@
+= Managing YAML Resources
+:navtitle: Managing YAML Resources
+
