@@ -1,0 +1,71 @@
+name: github pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'content/**'
+      - 'site.yml'
+      - 'ui-config.yml'
+      - '.github/workflows/gh-pages.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'content/**'
+      - 'site.yml'
+      - 'ui-config.yml'
+      - '.github/workflows/gh-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+      - name: setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: install antora
+        run: >-
+          npm i -g
+          @antora/cli@3.1
+          @antora/site-generator@3.1
+          @sntke/antora-mermaid-extension@0.0.13
+          @antora/lunr-extension
+          @andrew-jones/antora-tabs-extension
+      - name: override ui bundle for gh-pages
+        run: >-
+          sed -i 's|url: .*ui-bundle.zip|url: https://github.com/rhpds/rhdp_showroom_theme/releases/download/showroom-template/ui-bundle.zip|'
+          site.yml
+      - name: inject lunr search extension
+        run: |
+          sed -i "/^output:/i\\    - require: '@antora/lunr-extension'\n      index_by_heading: true" site.yml
+      - name: antora generate
+        run: antora --fetch site.yml
+      - name: upload pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: www
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: deploy github pages
+        id: deployment
+        uses: actions/deploy-pages@v5
