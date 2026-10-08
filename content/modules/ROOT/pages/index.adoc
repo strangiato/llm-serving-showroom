@@ -1,6 +1,8 @@
 = What is Showroom?
 :navtitle: What is Showroom?
 
+test
+
 Showroom is a web-based lab instruction platform for the https://demo.redhat.com[Red Hat Demo Platform].
 It combines rendered AsciiDoc content with embedded terminals, consoles, and interactive tools -- giving workshop and demo participants everything they need in a single browser tab.
 
