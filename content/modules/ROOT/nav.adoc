@@ -1,4 +1,5 @@
-* xref:index.adoc[What is Showroom?]
+* xref:index.adoc[What is Showroom?]\
+* xref:cluster-access.adoc[Cluster Access]
 * xref:environment-overview.adoc[Environment Overview]
 
 .Exercises
