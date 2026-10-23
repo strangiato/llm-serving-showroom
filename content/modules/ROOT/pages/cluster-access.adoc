@@ -13,7 +13,7 @@ The OpenShift AI Dashboard is a web-based interface that allows you to manage yo
 
 To access the dashboard, click on the "Waffle" menu in the top right hand corner of the OpenShift console, and select "OpenShift AI Dashboard".
 
-:image: images/openshift-ai-dashboard.png[OpenShift AI Dashboard]
+image::cluster-access/waffle-menu.png[OpenShift console waffle menu,link=self,window=blank,width=400]
 
 === OpenShift CLI Access
 
