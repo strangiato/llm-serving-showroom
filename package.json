@@ -1,0 +1,28 @@
+{
+  "name": "llm-serving-showroom",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/strangiato/llm-serving-showroom.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/strangiato/llm-serving-showroom/issues"
+  },
+  "homepage": "https://github.com/strangiato/llm-serving-showroom#readme",
+  "dependencies": {
+    "@andrew-jones/antora-tabs-extension": "^1.0.0",
+    "@sntke/antora-mermaid-extension": "^0.0.13"
+  }
+}
