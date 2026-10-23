@@ -1,13 +1,13 @@
 = Cluster Access
 :navtitle: Cluster Access
 
-:: Accessing the Cluster
+== Accessing the Cluster
 
 The workshop proctor will provide you with a set of credentials to access the cluster as well as a URL for the OpenShift console.
 
 Using the provided credentials, access the OpenShift console.
 
-:::OpenShift AI Dashboard
+=== OpenShift AI Dashboard
 
 The OpenShift AI Dashboard is a web-based interface that allows you to manage your AI resources.
 
@@ -15,19 +15,19 @@ To access the dashboard, click on the "Waffle" menu in the top right hand corner
 
 :image: images/openshift-ai-dashboard.png[OpenShift AI Dashboard]
 
-:::OpenShift CLI Access
+=== OpenShift CLI Access
 
 Throughout the workshop we will be using the OpenShift CLI to manage our resources.
 
 You can access the CLI through the Web Terminal in the OpenShift console, or by using the oc command line tool installed on your machine.
 
-:::: Web Terminal
+==== Web Terminal
 
 To access the Web Terminal, click on the "Terminal" icon in the top right hand corner of the OpenShift console.
 
 You will be prompted to select a Project to start your terminal session.  Search for the project named `user#-model-server`.
 
-:::: CLI Access
+==== CLI Access
 
 In the top right corner of the OpenShift console, you will see a dropdown menu with "User# Demo". Select "Copy Login Command" to open a new window and copy the login command to your clipboard.
 
