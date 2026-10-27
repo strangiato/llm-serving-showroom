@@ -1,3 +1,140 @@
 = Environment Overview
 :navtitle: Environment Overview
 
+== User Access
+
+All of the users of the workshop have been granted cluster reader access to the cluster.  This means that you will be able to view all of the resources in the cluster, but you will not be able to modify them.
+
+This will enable us to explore the cluster level resources on the cluster without the risk of modifying them.
+
+Each user will have their own project in the cluster where they have admin access.  The project name will be `user#-model-server`.
+
+For example, if you are user 1, your project will be `user1-model-server`.
+
+You will be able to access your project by clicking on the "Projects" menu in the top left hand corner of the OpenShift console, and selecting "user#-model-server".  You will also see this project in the OpenShift AI Dashboard.
+
+== Cluster Overview
+
+
+=== Installed Operators
+
+The cluster has been configured with OpenShift AI and several dependencies.
+
+This cluster has not been configured with any GPU resources so all of the testing we will do in this lab will utilize CPU only.
+
+From the OpenShift console, navigate to `Ecosystem` > `Installed Operators` to view the installed operators on the cluster.
+
+Explore the installed operators.  You will see the following operators installed:
+
+* OpenShift AI
+
+Authentication and authorization for Model Servers is provided by Red Hat Connectivity Link and it's dependencies:
+* Red Hat Connectivity Link
+    * Authorino Operator
+    * DNS Operator
+    * Limitador Operator
+
+OpenShift AI enables advanced autoscaling for Model Servers.  This is provided by the following operator:
+* Custom Metrics Autoscaler
+
+Observability with OpenShift AI leverages the following operators:
+* Red Hat Build of OpenTelemetry
+* Red Hat Observability Operator
+* Tempo Operator
+* Kail Operator
+
+Some other operators installed for the workshop but not required for OpenShift AI:
+* Red Hat OpenShift GitOps Operator
+* Web Terminal Operator
+    * Dev Workspace Operator
+* Kubernetes Image Puller Operator
+
+=== OpenShift AI Configuration
+
+OpenShift AI allows you to configure different components of the platform.  Admins are able to enable and disable different features of the platform using the `DataScienceCluster` object.
+
+From the OpenShift console, navigate to `Ecosystem` > `Installed Operators` and select the `OpenShift AI` operator.  Navigate to the `DataScienceCluster` tab and select the `default-dsc` object.  Review the YAML configuration of the `default-dsc` object to see what features have been enabled or disabled.
+
+Components with `managementState: Managed` are installed and actively managed by the operator.  Components with `managementState: Removed` are not installed on this cluster.
+
+==== Enabled components
+
+*KServe* (`kserve`)::
+Model serving runtime for deploying models as InferenceServices.  This is the primary component you will use in this workshop to serve LLMs.
++
+On this cluster, KServe is configured with `rawDeploymentServiceConfig: Headed`, which creates standard ClusterIP Services for RawDeployment InferenceServices (instead of headless Services).
+
+*Workload Variant Autoscaler* (`kserve.wva`)::
+Autoscales model-serving workloads based on metrics such as tokens or concurrency.  Use it when you need more advanced scaling behavior for LLM serving than basic CPU or memory HPA.
+
+*Model Registry* (`modelregistry`)::
+Central catalog for registering, versioning, and discovering models.  Use it to track model metadata and promote models across projects.  Registries are stored in the `rhoai-model-registries` namespace.
+
+*Workbenches* (`workbenches`)::
+Managed Jupyter notebook environments for interactive development and experimentation.  Default workbenches run in the `rhods-notebooks` namespace.
+
+==== Disabled components
+
+*AI Gateway* (`aigateway`)::
+Gateway layer for routing and managing access to AI services.  Includes the Models as a Service sub-component (`aigateway.modelsAsAService`) for multi-tenant model serving.
+
+*AI Pipelines* (`aipipelines`)::
+Pipeline orchestration for building and running ML workflows (data prep, training, deployment).  Disabled so the cluster stays focused on model serving.
+
+*Dashboard* (`dashboard`)::
+The OpenShift AI web UI for projects, models, workbenches, and related AI resources.  Removed on this cluster; you will interact with OpenShift AI primarily through the OpenShift console and CLI.
+
+*Feast Operator* (`feastoperator`)::
+Feature store for defining, managing, and serving ML features for training and inference.  Not needed for the LLM serving exercises in this lab.
+
+*Models as a Service* (`kserve.modelsAsService`)::
+Legacy Models as a Service setting under KServe.  Newer configurations use `aigateway.modelsAsAService` instead.
+
+*NVIDIA NIM* (`kserve.nim`)::
+Integration for deploying NVIDIA NIM model microservices.
+
+*Kueue* (`kueue`)::
+Batch job queueing and fair-share resource management across teams.  Useful on busy shared clusters; removed here to keep the serving path simpler.
+
+*Llama Stack Operator* (`llamastackoperator`)::
+Legacy operator for Llama Stack distributions that bundle LLM APIs and agents.  Deprecated in favor of OGX.
+
+*MLflow Operator* (`mlflowoperator`)::
+Experiment tracking and model lifecycle management with MLflow.  Useful for training workflows and agentic observability.
+
+*OGX* (`ogx`)::
+Successor to Llama Stack for building agentic AI applications with a unified server-side API.
+
+*Ray* (`ray`)::
+Distributed compute framework for parallel training and batch inference workloads.
+
+*Training Operator* (`trainingoperator`)::
+Distributed training jobs (for example TensorFlow or PyTorch training on Kubernetes).  This workshop serves existing models rather than training new ones.
+
+*TrustyAI* (`trustyai`)::
+Responsible AI tooling for model monitoring, bias detection, and evaluations.  Useful for production model governance.
+
+=== Gateway Configuration
+
+OpenShift AI uses the Kubernetes Gateway API to expose AI services and model inference endpoints.  On this cluster, those Gateway resources live in the `openshift-ingress` namespace.
+
+You will see two Gateways in that project:
+
+* `data-science-gateway` -- automatically provisioned by OpenShift AI for the dashboard and related platform services.  You do not need to explore this Gateway for this workshop.
+* `openshift-ai-inference` -- provisioned by the cluster admin for deploying model servers with KServe.  This is the Gateway you will use when serving LLMs later in the lab.
+
+==== Explore the inference Gateway in the OpenShift console
+
+. Open *Home* > *Search*.
+
+. Open the *Project* dropdown in the top navigation bar and select `openshift-ingress`.
++
+If the project does not appear, enable *Show default projects*, then search for `openshift-ingress` and select it.
+
+. In the *Resources* dropdown, search for and select *Gateway* (`gateway.networking.k8s.io`).
+
+. Click `openshift-ai-inference` and explore the Gateway configuration.
+
+The Gateway is configured to utilize Kubernetes Service of type `LoadBalancer` to expose the model server by default instead of an OpenShift Route.
+
+Most cloud providers have support for the service of type `LoadBalancer` but this may not be the case for clusters deployed on-premises.  In order to leverage a service of type `LoadBalancer` you can deploy additional tools such as MetalLB to provide this functionality.  Alternatively, you can configure the Gateway to use a service of type `ClusterIP` and expose the model server using an OpenShift Route.
