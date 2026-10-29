@@ -1,3 +1,33 @@
 = Serving LLMs with OpenShift AI
 :navtitle: Serving LLMs with OpenShift AI
 
+Welcome to the *Serving LLMs with OpenShift AI* workshop.
+
+In this workshop you will learn how to deploy and serve a large language model (LLM) with Red Hat OpenShift AI.  You will deploy the Llama 3.2 1B Instruct model to your own project on an OpenShift cluster using the OpenShift AI Dashboard, send inference requests to the model over the OpenAI-compatible API exposed by vLLM, and manage and secure the deployment using Kubernetes resources.
+
+== Workshop environment
+
+The workshop runs on an OpenShift cluster with Red Hat OpenShift AI installed.  The cluster has no GPU resources, so the model is served by vLLM running on the CPU.
+
+Each workshop user has their own project named `user#-model-server`, where you have admin access to deploy and manage your own model server.  You also have cluster reader access, which lets you explore the cluster-level resources without the risk of modifying them.
+
+== What you will do
+
+* Access the OpenShift console, the OpenShift AI Dashboard, and the OpenShift CLI (`oc`).
+* Deploy the Llama 3.2 1B Instruct model using the OpenShift AI Dashboard.  The model is distributed as a modelcar -- an OCI container image that packages the model weights together with its tokenizer and configuration -- and is deployed with single-model serving using llm-d, which creates an `LLMInferenceService` object.
+* Verify the deployment by reviewing the pods in the OpenShift UI and the vLLM logs in the model server pod.
+* Find the external endpoint URL of the model and send inference requests to it using the OpenAI-compatible API.
+* Review the `LLMInferenceService` object from the OpenShift console and with `oc`.
+* Secure the model endpoint with a vLLM API key.
+
+== Modules
+
+The workshop consists of the following modules:
+
+. xref:cluster-access.adoc[Cluster Access] -- access the OpenShift console, the OpenShift AI Dashboard, and the OpenShift CLI.
+. xref:environment-overview.adoc[Environment Overview] -- explore the workshop environment, the installed operators, and your project.
+. xref:deploying-llm.adoc[Deploying an LLM] -- deploy the Llama 3.2 1B Instruct model with the OpenShift AI Dashboard.
+. xref:test-and-validate.adoc[Testing and Validation Your LLM] -- find the external endpoint URL and send inference requests to the model.
+. xref:managing-yaml.adoc[Managing YAML Resources] -- review the `LLMInferenceService` object and secure the endpoint with a vLLM API key.
+
+By the end of the workshop you will have a working LLM deployment on OpenShift AI and the knowledge to serve, validate, and secure LLMs on your own clusters.
