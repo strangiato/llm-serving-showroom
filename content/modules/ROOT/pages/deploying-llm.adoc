@@ -11,6 +11,9 @@ The modelcar URI used in this exercise:
 oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.2-1b-instruct
 ----
 
+To learn more about modelcars, see the following blog post:
+https://developers.redhat.com/articles/2025/01/30/build-and-deploy-modelcar-container-openshift-ai
+
 == Prerequisites
 
 * Cluster access as described in xref:cluster-access.adoc[Cluster Access].
@@ -81,9 +84,9 @@ Click *Next*.
 
 . Review the deployment summary and click *Deploy*.
 +
-The dashboard creates an `LLMInferenceService` object in your project and the model server starts.
+The dashboard creates an `LLMInferenceService` object in your project and the model server will attempt to start, and eventually fail due to a lack of GPU resources.
 
-. Update the serving runtime image of the `LLMInferenceService` object to a pinned image digest using `oc`:
+. In order to deploy the model server with the CPU backend, we will need to update the image to use a CPU specific vLLM image.  Update the serving runtime image of the `LLMInferenceService` object to a pinned image digest using `oc`:
 +
 [source,role="execute"]
 ----
@@ -94,14 +97,14 @@ The `LLMInferenceService` controller detects the image change and rolls the mode
 +
 [NOTE]
 ====
-The OpenShift AI Dashboard does not currently support setting the image used with an `LLMInferenceService` object.  It always deploys the default NVIDIA vLLM image, which requires a GPU.  To run vLLM on CPU only, the image must be set manually with `oc`, as shown in the previous step.
+The OpenShift AI Dashboard does not currently support setting the image used with an `LLMInferenceService` object.  It always deploys the default NVIDIA vLLM image, which requires a GPU.  To run vLLM on CPU only, the image must be set manually with `oc` or by modifying the YAML directly.
 ====
 
 == Verify the deployment
 
 The model takes a few minutes to become ready: the modelcar image is pulled from the registry, the model weights are loaded, and the KV cache is allocated.
 
-. Review the pods in the OpenShift UI.  From the *Administrator* perspective of the OpenShift console, go to *Workloads* -> *Pods* and select your project (`user#-model-server`).  Find the model server pod, named `llama-32-1b-instruct-kserve-` followed by a generated suffix.  The pod runs two containers: `main`, which serves the model with vLLM, and `modelcar`, which makes the model files available to the `main` container.  You will also see the `llama-32-1b-instruct-kserve-router-scheduler` pod, which routes requests to the model endpoint.  The deployment and its status are also shown on the *Deployments* tab of your project in the OpenShift AI Dashboard.
+. Review the pods in the OpenShift UI.  From the OpenShift console, go to *Workloads* -> *Pods* and select your project (`user#-model-server`) from the Project dropdown.  Find the model server pod, named `llama-32-1b-instruct-kserve-` followed by a generated suffix.  The pod runs two containers: `main`, which serves the model with vLLM, and `modelcar`, which makes the model files available to the `main` container.  You will also see the `llama-32-1b-instruct-kserve-router-scheduler` pod, which routes requests to the model endpoint.  The deployment and its status are also shown on the *Deployments* tab of your project in the OpenShift AI Dashboard.
 
 . Check the vLLM logs in the pod:
 +
