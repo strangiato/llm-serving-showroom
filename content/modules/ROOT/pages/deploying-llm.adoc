@@ -1,3 +1,168 @@
 = Deploying an LLM
 :navtitle: Deploying an LLM
 
+In this exercise you will deploy the Llama 3.2 1B Instruct model to your own project using the OpenShift AI Dashboard.
+
+The model is distributed as a *modelcar* -- an OCI container image that packages the model weights together with its tokenizer and configuration.  When the model is referenced with a modelcar URI, the model is pulled from an image registry at deployment time instead of being downloaded from Hugging Face.
+
+The modelcar URI used in this exercise:
+
+----
+oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.2-1b-instruct
+----
+
+== Prerequisites
+
+* Cluster access as described in xref:cluster-access.adoc[Cluster Access].
+* Your own project named `user#-model-server`.  For example, if you are user 1, your project will be `user1-model-server`.
+* Single-model serving enabled for your project.  With single-model serving, each model is deployed on its own model server.
+
+== Deploy the model with the OpenShift AI Dashboard
+
+. From the OpenShift AI Dashboard, open the *Projects* menu and select your project (`user#-model-server`).  Navigate to the *Deployments* tab and click *Deploy model*.
++
+image::deploying-llm/deployments.png[The Deployments tab of the user# model-server project,link=self,window=blank,width=700]
+
+. On the *Model details* step, select *URI* as the *Model location* and enter the modelcar URI:
++
+----
+oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.2-1b-instruct
+----
+
+. Keep *Create a connection to this location* selected.  This creates a reusable connection to the modelcar image registry.
+
+. Enter `llama-3.2-1b-instruct` as the *Name* and select *Generative AI model (Example, LLM)* as the *Model type*.  Click *Next*.
++
+image::deploying-llm/model-details.png[The Model details step of the Deploy a model wizard,link=self,window=blank,width=700]
++
+[NOTE]
+====
+Periods in the display name are replaced with dashes in the Kubernetes resource name.  `llama-3.2-1b-instruct` becomes `llama-32-1b-instruct`.  Use the resource name when inspecting the deployment with `oc`.
+====
+
+. On the *Model deployment* step, confirm that the *Project* is your project (`user#-model-server`) and enter `llama-3.2-1b-instruct` as the *Model deployment name*.
+
+. Select *LLM inference service with llm-d* as the *Deployment method*.  This deploys the model as an `LLMInferenceService` object with distributed serving and advanced routing techniques such as cache-aware routing and disaggregated prefill and decode.  Click *Next*.
++
+image::deploying-llm/model-name.png[The Model deployment step of the Deploy a model wizard,link=self,window=blank,width=700]
++
+[NOTE]
+====
+Both deployment methods are provided by KServe, but they differ in what is created and how requests are routed:
+
+* *LLM inference service with llm-d* creates an `LLMInferenceService` object (`serving.kserve.io/v1alpha2`), an API purpose-built for serving LLMs.  Alongside the model server workload it deploys an InferencePool with an endpoint picker (the scheduler) and an HTTPRoute on the cluster Gateway.  Requests are routed to the best available model endpoint, enabling llm-d techniques such as cache-aware routing and disaggregated prefill and decode.
+
+* *Inference service* creates a standard KServe `InferenceService` object (`serving.kserve.io/v1beta1`), which deploys the model using a serving runtime template (for example, vLLM) behind a single Service.  It is the simpler option: there is no LLM-aware scheduler, no prefill and decode disaggregation, and requests are routed to the model server without endpoint selection.
+
+Red Hat recommends using the *LLM inference service with llm-d* deployment method for best performance and scalability.
+====
+
+. On the *Advanced settings* step, select *default-profile* as the *Hardware profile* and expand *Customize resource requests and limits* to set the resources for the CPU-only model server: 4 Cores for both *CPU requests* and *CPU limits*, and 10 GiB for both *Memory requests* and *Memory limits*.  Keep the *Replica count* at 1.
++
+image::deploying-llm/model-resources.png[The Advanced settings step of the Deploy a model wizard,link=self,window=blank,width=700]
+
+. Because this cluster has no GPUs, the model is served by vLLM on the CPU.  Under *Configuration parameters*, select *Add custom runtime environment variables* and click *Add variable* to reserve a fixed amount of memory for the KV cache by adding the following environment variable:
++
+[cols="1,1",options="header"]
+|===
+|Name
+|Value
+
+|`VLLM_CPU_KVCACHE_SPACE`
+|`4`
+|===
++
+image::deploying-llm/model-advanced-settings.png[The Advanced settings step of the Deploy a model wizard with the VLLM_CPU_KVCACHE_SPACE environment variable,link=self,window=blank,width=700]
++
+[NOTE]
+====
+On the CPU backend, `VLLM_CPU_KVCACHE_SPACE` controls how many GiB of memory vLLM reserves for the KV cache.  A value of `4` keeps the total memory usage within the 10 GiB memory limit of the model server.
+====
+
+. Click *Next*.
+
+. Review the deployment summary and click *Deploy*.
++
+The dashboard creates an `LLMInferenceService` object in your project and the model server starts.
+
+. Update the serving runtime image of the `LLMInferenceService` object to a pinned image digest using `oc`:
++
+[source,role="execute"]
+----
+oc patch llminferenceservice llama-32-1b-instruct -n user#-model-server --type='json' -p='[{"op":"replace","path":"/spec/template/containers/0/image","value":"registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:db9adba1176fea8d2e6bbc8621ca3e8aa0d69b92036f846af2ac692355114af1"}]'
+----
++
+The `LLMInferenceService` controller detects the image change and rolls the model server deployment with the updated image.  The serving runtime container is the first container in the deployment template (`main`), so the patch targets `containers/0`.
++
+[NOTE]
+====
+The OpenShift AI Dashboard does not currently support setting the image used with an `LLMInferenceService` object.  It always deploys the default NVIDIA vLLM image, which requires a GPU.  To run vLLM on CPU only, the image must be set manually with `oc`, as shown in the previous step.
+====
+
+== Verify the deployment
+
+The model takes a few minutes to become ready: the modelcar image is pulled from the registry, the model weights are loaded, and the KV cache is allocated.
+
+. Review the pods in the OpenShift UI.  From the *Administrator* perspective of the OpenShift console, go to *Workloads* -> *Pods* and select your project (`user#-model-server`).  Find the model server pod, named `llama-32-1b-instruct-kserve-` followed by a generated suffix.  The pod runs two containers: `main`, which serves the model with vLLM, and `modelcar`, which makes the model files available to the `main` container.  You will also see the `llama-32-1b-instruct-kserve-router-scheduler` pod, which routes requests to the model endpoint.  The deployment and its status are also shown on the *Deployments* tab of your project in the OpenShift AI Dashboard.
+
+. Check the vLLM logs in the pod:
++
+[source,role="execute"]
+----
+oc logs -n user#-model-server deploy/llama-32-1b-instruct-kserve -c main
+----
++
+The `-c main` flag selects the vLLM container.  Look for lines showing that the model weights loaded, the KV cache was allocated, and the server started:
++
+[source]
+----
+(Worker pid=126) INFO 10-27 21:09:18 [default_loader.py:430] Loading weights took 0.78 seconds
+(Worker pid=126) INFO 10-27 21:13:06 [cpu_worker.py:235] Explicitly set (4.0/10.0) GiB for KV cache on node 0.
+(EngineCore pid=100) INFO 10-27 21:13:06 [kv_cache_utils.py:2146] GPU KV cache size: 131,072 tokens
+(EngineCore pid=100) INFO 10-27 21:13:06 [core.py:344] init engine (profile, create kv cache, warmup model) took 228.74 s
+(APIServer pid=4) INFO:     Application startup complete.
+----
+
+. Check that the pods are in a ready state:
++
+[source,role="execute"]
+----
+oc get pods -n user#-model-server
+----
++
+The model server pod must show `2/2` in the READY column and be in the `Running` state:
++
+[source]
+----
+NAME                                                            READY   STATUS    RESTARTS   AGE
+llama-32-1b-instruct-kserve-5fc58cdc6d-5qttw                    2/2     Running   0          8m40s
+llama-32-1b-instruct-kserve-router-scheduler-6ff74978fb-vrt7b   1/1     Running   0          33m
+----
++
+In the OpenShift UI, the pod status shows *Running* with both containers ready.
+
+. Review the `LLMInferenceService` object:
++
+[source,role="execute"]
+----
+oc get llminferenceservice -n user#-model-server
+----
++
+The READY column must show `True`:
++
+[source]
+----
+NAME                   URL                                                                                                                                    READY   REASON   AGE
+llama-32-1b-instruct   http://openshift-ai-inference-data-science-gateway-class.openshift-ingress.svc.cluster.local/user1-model-server/llama-32-1b-instruct   True             25h
+----
++
+The URL in the output is the gateway route used to send requests to the model.  To inspect the full object, including the resource limits and environment variables configured in the deployment wizard:
++
+[source,role="execute"]
+----
+oc get llminferenceservice llama-32-1b-instruct -n user#-model-server -o yaml
+----
+
+When the pods are ready and the `LLMInferenceService` object reports `Ready=True`, the model is being served and ready to receive inference requests.
+
+You will validate the deployment and send test requests in xref:test-and-validate.adoc[Testing and Validation Your LLM].

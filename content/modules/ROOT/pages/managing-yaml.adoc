@@ -1,3 +1,136 @@
 = Managing YAML Resources
 :navtitle: Managing YAML Resources
 
+In this exercise you will review the `LLMInferenceService` object that deploys the model from xref:deploying-llm.adoc[Deploying an LLM].  You will find the object from the OpenShift console, review it with `oc`, and secure the model endpoint with a vLLM API key.
+
+== Find the object in the OpenShift console
+
+The *Home > Search* page of the OpenShift console lets you search for any resource in the cluster.  You can filter resources by project, by kind, and by name, and the results list every matching resource.  Selecting a resource opens its details page, where you can view its status and its full YAML definition.
+
+. From the *Administrator* perspective of the OpenShift console, go to *Home* -> *Search*.
+
+. Select your project (`user#-model-server`) in the *Project* dropdown.
+
+. In the *Kind* dropdown, type `LLMInferenceService` and select it from the list.  The search results show the `llama-32-1b-instruct` object.
+
+. Click the object name to open its details.  The *Details* tab shows the status and configuration of the object, and the *YAML* tab shows the full object definition.
+
+== Review the LLMInferenceService object
+
+The `LLMInferenceService` object defines how the model is served.  It was created by the deployment wizard in xref:deploying-llm.adoc[Deploying an LLM] and can be reviewed with `oc`:
+
+[source,role="execute"]
+----
+oc get llminferenceservice llama-32-1b-instruct -n user#-model-server -o yaml
+----
+
+The key parts of the object:
+
+[cols="1,2",options="header"]
+|===
+|Field
+|Description
+
+|`spec.model`
+|The model served by the model server: the model name and the modelcar URI (`oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.2-1b-instruct`).
+
+|`spec.replicas`
+|The number of model server replicas.
+
+|`spec.template`
+|The pod template for the model server workload.  The `main` container runs vLLM with the pinned CPU image, and the resource limits and environment variables (such as `VLLM_CPU_KVCACHE_SPACE`) are configured here.
+
+|`spec.router`
+|The gateway, route, and scheduler configuration used by the llm-d deployment to route requests to the model.
+
+|`status`
+|The current status of the service, including the `Ready` condition.
+|===
+
+Changes to the object are applied by the `LLMInferenceService` controller, which creates and manages the model server deployment, the scheduler, and the gateway route.  The remaining steps in this module update the object with `oc`.
+
+== Securing with a vLLM API Key
+
+By default, the model endpoint accepts requests from any client that can reach it.  vLLM can require an API key by setting the `VLLM_API_KEY` environment variable on the model server.  When set, every request must include the key as a bearer token in the `Authorization` header.
+
+Store the API key in a secret in your project and reference the secret from the `LLMInferenceService`.
+
+. Create a secret containing the API key using `oc`:
++
+[source,role="execute"]
+----
+oc create secret generic vllm-api-key -n user#-model-server --from-literal=VLLM_API_KEY=my-vllm-api-key
+----
++
+The secret is created from a simple string using the `--from-literal` flag.  Replace `my-vllm-api-key` with your own key.  The same value is used to test the endpoint later in this module.
+
+. Add the `VLLM_API_KEY` environment variable to the `main` container of the `LLMInferenceService` and reference the secret:
++
+[source,role="execute"]
+----
+oc patch llminferenceservice llama-32-1b-instruct -n user#-model-server --type='json' -p='[{"op":"add","path":"/spec/template/containers/0/env/-","value":{"name":"VLLM_API_KEY","valueFrom":{"secretKeyRef":{"name":"vllm-api-key","key":"VLLM_API_KEY"}}}}]'
+----
++
+The `env/-` path appends the environment variable to the existing environment variables of the container, such as `VLLM_CPU_KVCACHE_SPACE`.  The value of the environment variable is read from the `vllm-api-key` secret at runtime.
++
+[NOTE]
+====
+If the `main` container does not have any environment variables yet, patch the path `/spec/template/containers/0/env` instead and provide the full list as the value: `[{"name":"VLLM_API_KEY","valueFrom":{"secretKeyRef":{"name":"vllm-api-key","key":"VLLM_API_KEY"}}}]`.
+====
+
+. The `LLMInferenceService` controller detects the change and rolls the model server deployment with the new environment variable.  Wait for the new pod to be ready (`2/2`):
++
+[source,role="execute"]
+----
+oc get pods -n user#-model-server
+----
+
+== Test the endpoint with the API key
+
+Get the external endpoint URL of the model as described in xref:test-and-validate.adoc[Testing and Validation Your LLM] and export it as an environment variable:
+
+[source,role="execute"]
+----
+export ENDPOINT_URL=<paste the copied endpoint URL here>
+----
+
+. Test the endpoint without the API key.  The request is rejected:
++
+[source,role="execute"]
+----
+curl -s -o /dev/null -w "%{http_code}\n" $ENDPOINT_URL/v1/models
+----
++
+The endpoint returns `401`, the HTTP status code for an unauthorized request.
+
+. Send a chat completion request with the API key in the `Authorization` header:
++
+[source,role="execute"]
+----
+curl -s $ENDPOINT_URL/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer my-vllm-api-key" \
+  -d '{
+    "model": "llama-32-1b-instruct",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is the capital of France?"
+      }
+    ]
+  }'
+----
++
+The response contains the reply generated by the model:
++
+[source]
+----
+{"id":"chatcmpl-...","object":"chat.completion","created":...,"model":"llama-32-1b-instruct","choices":[{"index":0,"message":{"role":"assistant","content":"The capital of France is Paris."},"finish_reason":"stop"}],"usage":{...}}
+----
+
+[NOTE]
+====
+The external endpoint in this workshop is served over HTTP.  In production, secure the endpoint with HTTPS so that the API key is not sent in clear text.
+====
+
+The model endpoint is now secured with the vLLM API key: requests without the key are rejected, and requests with the key are served by the model.
