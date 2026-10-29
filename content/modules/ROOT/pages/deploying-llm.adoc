@@ -76,8 +76,8 @@ image::deploying-llm/model-advanced-settings.png[The Advanced settings step of t
 ====
 On the CPU backend, `VLLM_CPU_KVCACHE_SPACE` controls how many GiB of memory vLLM reserves for the KV cache.  A value of `4` keeps the total memory usage within the 10 GiB memory limit of the model server.
 ====
-
-. Click *Next*.
++
+Click *Next*.
 
 . Review the deployment summary and click *Deploy*.
 +
