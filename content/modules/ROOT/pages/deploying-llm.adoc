@@ -28,10 +28,8 @@ image::deploying-llm/deployments.png[The Deployments tab of the user# model-serv
 ----
 oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.2-1b-instruct
 ----
-
-. Keep *Create a connection to this location* selected.  This creates a reusable connection to the modelcar image registry.
-
-. Enter `llama-3.2-1b-instruct` as the *Name* and select *Generative AI model (Example, LLM)* as the *Model type*.  Click *Next*.
++
+Keep *Create a connection to this location* selected.  This creates a reusable connection to the modelcar image registry.  Enter `llama-3.2-1b-instruct` as the *Name* and select *Generative AI model (Example, LLM)* as the *Model type*.  Click *Next*.
 +
 image::deploying-llm/model-details.png[The Model details step of the Deploy a model wizard,link=self,window=blank,width=700]
 +
@@ -61,7 +59,7 @@ Red Hat recommends using the *LLM inference service with llm-d* deployment metho
 +
 image::deploying-llm/model-resources.png[The Advanced settings step of the Deploy a model wizard,link=self,window=blank,width=700]
 
-. Because this cluster has no GPUs, the model is served by vLLM on the CPU.  Under *Configuration parameters*, select *Add custom runtime environment variables* and click *Add variable* to reserve a fixed amount of memory for the KV cache by adding the following environment variable:
+. Uncheck the option for "Require token authentication".  Because this cluster has no GPUs, the model is served by vLLM on the CPU.  Under *Configuration parameters*, select *Add custom runtime environment variables* and click *Add variable* to reserve a fixed amount of memory for the KV cache by adding the following environment variable:
 +
 [cols="1,1",options="header"]
 |===
